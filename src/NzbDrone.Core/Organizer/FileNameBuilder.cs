@@ -309,6 +309,42 @@ namespace NzbDrone.Core.Organizer
             return movie.Title;
         }
 
+        private string ChangeCaseOfMatchesInString(string text, string exp, Func<string, string> changeCase)
+        {
+            // find all matches and their indexes
+            var wb = @"(?:\b|[_.-])";
+            var matches = Regex.Matches(text, $"{wb}{exp}{wb}", RegexOptions.IgnoreCase)
+                .Cast<Match>()
+                .Select(m => new { m.Index, m.Value })
+                .ToList();
+
+            // replace each match with the uppercase version
+            foreach (var match in matches)
+            {
+                text = text.Remove(match.Index, match.Value.Length).Insert(match.Index, changeCase(match.Value));
+            }
+
+            return text;
+        }
+
+        private string ToTitleCaseIgnoreOrdinals(string text)
+        {
+            var exp = @"([0-9]{1,3}(?:st|th|rd|nd))";
+            return ChangeCaseOfMatchesInString(text, exp, m => m.ToLower());
+        }
+
+        private string ToTitleCaseAlwaysUpper(string text)
+        {
+            var exp = @"(imax|3d|sdr|hdr)";
+            return ChangeCaseOfMatchesInString(text, exp, m => m.ToUpper());
+        }
+
+        private string ToEditionTitleCase(MovieFile movieFile)
+        {
+            var titleCase = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(movieFile.Edition.ToLower());
+            return ToTitleCaseAlwaysUpper(ToTitleCaseIgnoreOrdinals(titleCase));
+        }
+
         private void AddEditionTagsTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, MovieFile movieFile)
         {
             if (movieFile.Edition.IsNotNullOrWhiteSpace())
